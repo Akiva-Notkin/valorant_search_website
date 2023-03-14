@@ -19,14 +19,14 @@ def close_connection(exception):
         db.close()
 
 
-def query_db(query):
+def query_db(query, params=None):
     conn = psycopg2.connect(
         host=HOST_NAME,
         database=DB_NAME,
         user=USER_NAME,
         password=PW
     )
-    df = pd.read_sql_query(query, conn)
+    df = pd.read_sql_query(query, conn, params=params)
     return df
 
 
@@ -48,27 +48,46 @@ INT_RANGE_KEYS = ["credits", "health", "armor", "ult_points"]
 STRING_LIST_KEYS = ["agent_name", "player_name", "gun"]
 
 
+def search_for_agent_state_in_db_from_list(search_json_list, join_by_team=True):
+    unique_cols = ['game_uuid', 'round_number', 'frames_since_round_start']
+    if join_by_team:
+        unique_cols.append('is_attacking')
+    agent_state_df = None
+    for agent_state_info in search_json_list:
+        if agent_state_df is None:
+            agent_state_df = search_for_agent_state_in_db(agent_state_info)
+        else:
+            agent_state_df = pd.merge(agent_state_df, search_for_agent_state_in_db(agent_state_info),
+                                      on=unique_cols)
+    return agent_state_df
+
+
 def search_for_agent_state_in_db(search_json):
     where_conditions_list = []
+    params = {}
     for key, value in search_json.items():
         if key in INT_RANGE_KEYS:
-            where_conditions_list.append(f"{key} BETWEEN {value[0]} AND {value[1]} ")
+            where_conditions_list.append(f"{key} BETWEEN %({key}_min)s AND %({key}_max)s ")
+            params[f"{key}_min"] = value[0]
+            params[f"{key}_max"] = value[0]
         elif key in STRING_LIST_KEYS:
-            sql_string = ",".join(["'{}'".format(s.replace("'", "''")) for s in value])
-            where_conditions_list.append(f"{key} IN ({sql_string})")
+            where_conditions_list.append(f"{key} = ANY(%({key})s)")
+            params[key] = value
     where_condition_string = f"WHERE {' AND '.join(where_conditions_list)}"
 
+    state_count_min = 1
+    state_count_max = 5
     if 'state_count' in search_json:
-        state_count_string = f"agent_state_count BETWEEN {search_json['state_count'][0]} AND " \
-                             f"{search_json['state_count'][1]}"
-    else:
-        state_count_string = "agent_state_count BETWEEN 1 AND 5"
+        state_count_min = search_json['state_count'][0]
+        state_count_max = search_json['state_count'][1]
+    params['state_count_min'] = state_count_min
+    params['state_count_max'] = state_count_max
 
-    cte = f"WITH agent_state_select AS (SELECT round_number, frames_since_round_start, game_uuid, is_attacking, " \
+    cte = "WITH agent_state_select AS (SELECT round_number, frames_since_round_start, game_uuid, is_attacking, " \
           f"COUNT(*) as agent_state_count FROM agent_state {where_condition_string} " \
-          f"GROUP BY round_number, frames_since_round_start, game_uuid, is_attacking)" \
-          f"SELECT * FROM agent_state_select WHERE {state_count_string}"
-    agent_state_df = query_db(cte)
+          "GROUP BY round_number, frames_since_round_start, game_uuid, is_attacking)" \
+          "SELECT * FROM agent_state_select WHERE agent_state_count BETWEEN %(state_count_min)s AND %(state_count_max)s"
+    agent_state_df = query_db(cte, params=params)
     agent_state_df.drop('agent_state_count', axis=1, inplace=True)
     return agent_state_df
 
@@ -90,6 +109,20 @@ def create_embed_link(row, start_frame_column):
     return embed_link
 
 
+def add_winning_team_to_df(row):
+    if (1 <= row['round_number'] <= 12) or \
+            (row['round_number'] > 24 and row['round_number'] % 2 != 0):
+        if row['attackers_won']:
+            return row['first_half_attacking_team']
+        else:
+            return row['first_half_defending_team']
+    else:
+        if row['attackers_won']:
+            return row['first_half_defending_team']
+        else:
+            return row['first_half_attacking_team']
+
+
 def convert_to_html_showable_df(agent_round_map_merge_df):
     agent_round_map_merge_df['round_start_embed_vod'] = \
         agent_round_map_merge_df.apply(create_embed_link, axis=1, args=('round_start_frame',))
@@ -109,14 +142,7 @@ def form():
     if request.method == 'POST':
         json_data = json.loads(request.form.get('json_data'))
         agent_state_list = json_data['agent_state_list']
-        unique_cols = ('game_uuid', 'round_number', 'frames_since_round_start')
-        agent_state_df = None
-        for agent_state_info in agent_state_list:
-            if agent_state_df is None:
-                agent_state_df = search_for_agent_state_in_db(agent_state_info)
-            else:
-                agent_state_df = pd.merge(agent_state_df, search_for_agent_state_in_db(agent_state_info),
-                                          on=unique_cols)
+        agent_state_df = search_for_agent_state_in_db_from_list(agent_state_list)
         agent_state_df_dupe = agent_state_df
         if len(agent_state_df) == 0:
             return "NO RESULTS FOUND"
@@ -138,22 +164,58 @@ def form():
             agent_round_map_merge_df = pd.merge(agent_round_merge_df, map_info_df, on='game_uuid')
             agent_round_map_merge_df['first_true_frame_in_round'] = \
                 agent_round_map_merge_df.groupby(['round_number', 'game_uuid'])[
-                'frames_since_round_start'].transform('min') + agent_round_map_merge_df['round_start_frame']
+                    'frames_since_round_start'].transform('min') + agent_round_map_merge_df['round_start_frame']
             agent_round_map_merge_df['last_true_frame_in_round'] = \
                 agent_round_map_merge_df.groupby(['round_number', 'game_uuid'])[
-                'frames_since_round_start'].transform('max') + agent_round_map_merge_df['round_start_frame']
+                    'frames_since_round_start'].transform('max') + agent_round_map_merge_df['round_start_frame']
             agent_round_map_merge_df = agent_round_map_merge_df.drop('frames_since_round_start', axis=1)
             agent_round_map_merge_df = \
                 agent_round_map_merge_df.groupby(['round_number', 'game_uuid'], as_index=False).agg(lambda x: x.iloc[0])
 
             html_showable_df = convert_to_html_showable_df(agent_round_map_merge_df)
             col_skip = ['game_uuid', 'round_start_embed_vod', 'first_true_embed_vod', 'last_true_embed_vod']
+            vod_links = ['round_start_embed_vod', 'first_true_embed_vod', 'last_true_embed_vod']
 
             return render_template('show_video.html', agent_state_table=html_showable_df,
-                                   titles=agent_round_map_merge_df.columns.values, col_skip=col_skip)
+                                   titles=agent_round_map_merge_df.columns.values, col_skip=col_skip,
+                                   vod_links=vod_links)
 
     else:
         return render_template('json_input.html')
+
+
+def get_rounds_map_df_by_uuid(game_uuid):
+    game_uuid = str(game_uuid)
+    rounds_query = "SELECT round_number, attackers_won, total_agent_events, round_start_frame," \
+                   "        game_uuid " \
+                   "FROM round_info WHERE game_uuid = %(game_uuid)s"
+    params = {'game_uuid': game_uuid}
+    rounds_df = query_db(rounds_query, params)
+
+    map_query = "SELECT * FROM map_info WHERE game_uuid = %(game_uuid)s"
+    map_df = query_db(map_query, params)
+    return rounds_df, map_df
+
+
+@app.route('/maps/<uuid:map_id>')
+def map_page(map_id):
+    # use the map_id to retrieve the necessary variables from your data source
+    # ...
+    rounds_df, map_df = get_rounds_map_df_by_uuid(map_id)
+    round_map_df = rounds_df.merge(map_df, on='game_uuid')
+    round_map_df['round_start_embed_vod'] = \
+        round_map_df.apply(create_embed_link, axis=1, args=('round_start_frame',))
+    round_map_df['round_winning_team'] = round_map_df.apply(add_winning_team_to_df, axis=1)
+    vod_links = ['round_start_embed_vod']
+
+    return render_template('map.html',
+                           team_a=round_map_df.iloc[0]['first_half_attacking_team'],
+                           team_b=round_map_df.iloc[0]['first_half_defending_team'],
+                           date=round_map_df.iloc[0]['game_vod_time'],
+                           map_name=round_map_df.iloc[0]['map_name'],
+                           vod_links=vod_links,
+                           rounds=round_map_df)
+
 
 # @app.route('/data/', methods = ['POST', 'GET'])
 # def data():

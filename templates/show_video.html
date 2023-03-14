@@ -1,44 +1,7 @@
-<!doctype html>
-<html>
-  <head>
-    <title>My Dataframe</title>
-        <style>
-    table {
-      border-collapse: collapse;
-      width: 100%;
-    }
-    th, td {
-      text-align: left;
-      padding: 8px;
-      border-bottom: 1px solid #ddd;
-    }
-    th {
-      background-color: #f2f2f2;
-    }
-    tr:nth-child(even) {
-      background-color: #f2f2f2;
-    }
-    button {
-      background-color: #4CAF50;
-      color: white;
-      padding: 8px;
-      border: none;
-      cursor: pointer;
-    }
-    button:hover {
-      background-color: #3e8e41;
-    }
-  </style>
-  </head>
-  <body>
-    <h1>My Dataframe</h1>
-    <script>
-        function showVideo(video) {
-            var iframe = video.nextElementSibling;
-            iframe.style.display = "block";
-            video.style.display = "none";
-        }
-    </script>
+{% extends 'base.html' %}
+
+{% block content %}
+<div>
     <table>
       <thead>
         <tr>
@@ -57,28 +20,13 @@
               {% for title, value in row.iteritems() if title not in col_skip %}
                 <td>{{ value }}</td>
               {% endfor %}
-              <td>
-                <button onclick="showVideo(this)">Round Start</button>
-                <div style="display:none;">
-                  <iframe width="560" height="315" src="{{ row['round_start_embed_vod'] }}"></iframe>
-                </div>
-              </td>
-              <td>
-                <button onclick="showVideo(this)">Condition True Start</button>
-                <div style="display:none;">
-                  <iframe width="560" height="315" src="{{ row['first_true_embed_vod'] }}"></iframe>
-                </div>
-              </td>
-              <td>
-                <button onclick="showVideo(this)">Condition True End</button>
-                <div style="display:none;">
-                  <iframe width="560" height="315" src="{{ row['last_true_embed_vod'] }}"></iframe>
-                </div>
-              </td>
+              {% for title, value in row.iteritems() if title in vod_links %}
+                  {% include 'vod_embed.html' %}
+              {% endfor %}
             </tr>
           {% endfor %}
         {% endfor %}
       </tbody>
     </table>
-  </body>
-</html>
+</div>
+{% endblock %}
