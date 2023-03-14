@@ -1,0 +1,26 @@
+{
+  "agent_state_list": [
+    {
+      "gun": [
+        "ghost"
+      ],
+      "state_count": [
+        2,
+        5
+      ]
+    },
+    {
+      "gun": [
+        "classic"
+      ],
+      "state_count": [
+        2,
+        5
+      ]
+    },
+    {
+      "agent_name": ["jett"],
+      "gun": ["phantom"]
+    }
+  ]
+}

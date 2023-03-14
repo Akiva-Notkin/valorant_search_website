@@ -1,0 +1,7 @@
+{
+  "name": "valo_website",
+  "version": "1.0.0",
+  "dependencies": {
+    "nouislider": "^15.7.0"
+  }
+}

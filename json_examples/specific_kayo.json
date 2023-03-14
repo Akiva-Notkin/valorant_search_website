@@ -1,0 +1,8 @@
+{
+  "agent_state_list": [{
+    "agent_name": ["kayo"],
+    "gun": ["phantom", "vandal"],
+    "health": [46, 50],
+    "ult_points": [5, 10]
+  }]
+}

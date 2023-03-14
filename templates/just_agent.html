@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+
+<style>
+  /* Position the select dropdown on the left */
+  .agent-select {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: flex-start;
+  }
+
+  /* Hide the default select dropdown */
+
+.agent-select select {
+  display: none;
+}
+
+.agent-select .multi-select {
+  position: relative;
+  z-index: 1;
+}
+
+.agent-select .multi-select .selected-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  border: 1px solid #ccc;
+  border-radius: 0.5rem;
+  background-color: #fff;
+}
+
+.agent-select .multi-select .selected-item {
+  display: flex;
+  align-items: center;
+  padding: 0.25rem;
+  border: 1px solid #ccc;
+  border-radius: 0.25rem;
+  background-color: #f1f1f1;
+}
+
+.agent-select .multi-select .multi-select-options {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  overflow: auto;
+  max-height: 10rem;
+  padding: 0.5rem;
+  border: 1px solid #ccc;
+  border-top: none;
+  border-radius: 0 0 0.5rem 0.5rem;
+  background-color: #fff;
+}
+
+.agent-select .multi-select .multi-select-options label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+  cursor: pointer;
+}
+</style>
+
+
+</head>
+<body>
+<form>
+
+<div class="agent-select">
+  <select name="agents[]" multiple>
+    <option value="agent1">Agent 1</option>
+    <option value="agent2">Agent 2</option>
+    <option value="agent3">Agent 3</option>
+    <option value="agent4">Agent 4</option>
+    <option value="agent5">Agent 5</option>
+    <option value="agent6">Agent 6</option>
+  </select>
+  <div class="multi-select">
+    <div class="selected-items">
+      <!-- Selected items will be added here dynamically -->
+    </div>
+    <div class="multi-select-options">
+      <!-- Dropdown options will be added here dynamically -->
+    </div>
+  </div>
+</div>
+
+  <label for="health">Health:</label>
+  <select name="health">
+    <option value="gte">&gt;=</option>
+    <option value="eq">=</option>
+    <option value="lte">&lt;=</option>
+  </select>
+  <input type="number" name="health_value">
+
+  <br>
+
+  <label for="armor">Armor:</label>
+  <select name="armor">
+    <option value="gte">&gt;=</option>
+    <option value="eq">=</option>
+    <option value="lte">&lt;=</option>
+  </select>
+  <input type="number" name="armor_value">
+
+  <br>
+
+  <label for="credits">Credits:</label>
+  <select name="credits">
+    <option value="gte">&gt;=</option>
+    <option value="eq">=</option>
+    <option value="lte">&lt;=</option>
+  </select>
+  <input type="number" name="credits_value">
+
+  <br>
+
+  <label for="ultimate_points">Ultimate points:</label>
+  <select name="ultimate_points">
+    <option value="gte">&gt;=</option>
+    <option value="eq">=</option>
+    <option value="lte">&lt;=</option>
+  </select>
+  <input type="number" name="ultimate_points_value">
+  <input type="checkbox" name="has_ultimate" value="true">
+  <label for="has_ultimate">Has Ultimate</label>
+
+  <br>
+
+  <br>
+
+  <label for="gun">Gun:</label>
+  <select name="gun">
+    <option value="gun1">Gun 1</option>
+    <option value="gun2">Gun 2</option>
+    <option value="gun3">Gun 3</option>
+    <!-- add more options as needed -->
+  </select>
+
+  <br>
+
+  <label for="player_name">Player Name:</label>
+  <input type="text" name="player_name">
+
+  <br>
+
+  <label for="has_spike">Has Spike:</label>
+  <input type="checkbox" name="has_spike" value="true">
+</form>
+<script>
+  // Get the select element
+  const selectElement = document.querySelector(".agent-select select");
+
+  // Get the custom multi-select dropdown elements
+  const multiSelectElement = document.querySelector(".agent-select .multi-select");
+  const selectedItemsElement = multiSelectElement.querySelector(".selected-items");
+  const optionsElement = multiSelectElement.querySelector(".multi-select-options");
+
+  // Create a function to add a selected item to the custom multi-select dropdown
+  const addSelectedItem = (value, text) => {
+    // Check if the value is already selected
+    const selectedValues = Array.from(selectedItemsElement.querySelectorAll(".selected-item")).map(item => item.getAttribute("data-value"));
+    if (selectedValues.includes(value)) {
+      return;
+    }
+
+    // Create a new selected item element
+    const selectedItem = document.createElement("div");
+    selectedItem.classList.add("selected-item");
+    selectedItem.setAttribute("data-value", value);
+
+    // Create a label for the check box
+    const label = document.createElement("label");
+    label.innerHTML = `
+      <input type="checkbox" value="${value}" checked>
+      <span>${text}</span>
+    `;
+    label.addEventListener("click", (event) => {
+      // Prevent clicks on the check box from opening the options
+      event.stopPropagation();
+    });
+
+    // Add the label to the selected item element
+    selectedItem.appendChild(label);
+
+    // Add the selected item to the custom multi-select dropdown
+    selectedItemsElement.appendChild(selectedItem);
+  };
+
+  const showOptions = () => {
+  // Clear the existing options
+  optionsElement.innerHTML = "";
+
+  // Create a "Select All" button
+  const selectAllButton = document.createElement("button");
+  selectAllButton.innerText = "Select All";
+  selectAllButton.addEventListener("click", () => {
+    // Add all options to the custom multi-select dropdown
+    for (const option of selectElement.options) {
+      if (option.disabled) {
+        continue;
+      }
+      addSelectedItem(option.value, option.textContent);
+      option.selected = true;
+    }
+
+    // Update the select element's selected options
+    const selectedOptions = Array.from(selectedItemsElement.querySelectorAll(".selected-item")).map(item => item.getAttribute("data-value"));
+    selectElement.value = selectedOptions;
+  });
+
+  // Add the "Select All" button to the custom multi-select dropdown options
+  optionsElement.appendChild(selectAllButton);
+
+  // Loop through the select options and create a new option for each one
+  for (const option of selectElement.options) {
+    // Check if the option is disabled
+    const disabled = option.disabled;
+
+    // Create a new option element
+    const optionElement = document.createElement("label");
+    optionElement.innerHTML = `
+      <input type="checkbox" value="${option.value}" ${option.selected ? "checked" : ""} ${disabled ? "disabled" : ""}>
+      <span>${option.textContent}</span>
+    `;
+    optionElement.querySelector("input").addEventListener("change", () => {
+      // If the option is checked, add it to the custom multi-select dropdown
+      if (optionElement.querySelector("input").checked) {
+        addSelectedItem(option.value, option.textContent);
+      } else {
+        // If the option is unchecked, remove it from the custom multi-select dropdown
+        const selectedItem = selectedItemsElement.querySelector(`.selected-item[data-value="${option.value}"]`);
+        selectedItem.remove();
+      }
+
+      // Update the select element's selected options
+      const selectedOptions = Array.from(selectedItemsElement.querySelectorAll(".selected-item")).map(item => item.getAttribute("data-value"));
+      selectElement.value = selectedOptions;
+    });
+
+    // Add the option element to the custom multi-select dropdown options
+    optionsElement.appendChild(optionElement);
+  }
+};
+</script>
+</body>
+</html>

@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Agent Form</title>
+    <style>
+		body {
+			font-family: sans-serif;
+			background-color: #f4f4f4;
+			padding: 20px;
+		}
+		form {
+			background-color: #fff;
+			padding: 20px;
+			border-radius: 10px;
+			box-shadow: 0px 0px 10px #ddd;
+		}
+		h1 {
+			text-align: center;
+			margin-bottom: 20px;
+		}
+		section {
+			margin-bottom: 20px;
+		}
+		label {
+			display: block;
+			margin-bottom: 5px;
+			font-weight: bold;
+		}
+        input[type="text"],
+		select {
+			padding: 10px;
+			border-radius: 5px;
+			border: 1px solid #ccc;
+			width: 100%;
+		}
+		input[type="checkbox"] {
+			margin-right: 5px;
+		}
+		input[type="submit"] {
+			background-color: #333;
+			color: #fff;
+			padding: 10px;
+			border: none;
+			border-radius: 5px;
+			cursor: pointer;
+		}
+        body {
+				margin: 0;
+				padding: 0;
+				font-family: Arial, sans-serif;
+			}
+
+			.container {
+				max-width: 1200px;
+				margin: 0 auto;
+				padding: 20px;
+				display: flex;
+				flex-direction: row;
+				justify-content: space-between;
+			}
+
+			.team {
+				display: flex;
+				flex-direction: column;
+				margin: 20px;
+				padding: 20px;
+				background-color: #f2f2f2;
+				border-radius: 5px;
+			}
+
+			.agent {
+				margin-top: 10px;
+				padding: 10px;
+				background-color: #e6e6e6;
+				border-radius: 5px;
+			}
+
+			.remove-agent {
+				margin-left: 5px;
+			}
+
+			.search {
+				margin-top: 20px;
+				margin-bottom: 10px;
+			}
+
+			.add-team {
+				margin-top: 20px;
+				margin-left: auto;
+			}
+
+			.remove-team {
+				margin-top: 20px;
+				margin-left: 10px;
+				display: none;
+			}
+
+			@media screen and (max-width: 768px) {
+				.container {
+					flex-direction: column;
+				}
+			}
+        .team-1 {
+  float: left;
+  margin-right: 20px;
+}
+
+.team-2 {
+  float: right;
+  margin-left: 20px;
+}
+.clear {
+  clear: both;
+}
+	</style>
+<script>
+	var maxAgents = 5;
+
+	function addAgent(team) {
+		var teamEl = document.getElementById('team_'+team);
+		var agentNum = teamEl.children.length + 1;
+		if (agentNum <= maxAgents) {
+			var agent = document.createElement('div');
+			agent.className = 'agent';
+			agent.innerHTML = `
+				<label>Agent ${agentNum}</label>
+				<select name="agent_${team}_${agentNum-1}_name">
+					<option value="agent1">Agent 1</option>
+					<option value="agent2">Agent 2</option>
+					<option value="agent3">Agent 3</option>
+				</select>
+				<input type="text" name="agent_${team}_${agentNum-1}_player_name" placeholder="Player name" />
+				<input type="text" name="agent_${team}_${agentNum-1}_gun" placeholder="Gun" />
+				<input type="number" name="agent_${team}_${agentNum-1}_health_min" placeholder="Health" />
+				<select name="agent_${team}_${agentNum-1}_health_compare">
+					<option value=">=">≥</option>
+					<option value="=">=</option>
+					<option value="<=">≤</option>
+				</select>
+				<input type="number" name="agent_${team}_${agentNum-1}_armor_min" placeholder="Armor" />
+				<select name="agent_${team}_${agentNum-1}_armor_compare">
+					<option value=">=">≥</option>
+					<option value="=">=</option>
+					<option value="<=">≤</option>
+				</select>
+				<input type="number" name="agent_${team}_${agentNum-1}_credits_min" placeholder="Credits" />
+				<select name="agent_${team}_${agentNum-1}_credits_compare">
+					<option value=">=">≥</option>
+					<option value="=">=</option>
+					<option value="<=">≤</option>
+				</select>
+				<input type="number" name="agent_${team}_${agentNum-1}_ultimate_points_min" placeholder="Ultimate points" />
+				<select name="agent_${team}_${agentNum-1}_ultimate_points_compare">
+					<option value=">=">≥</option>
+					<option value="=">=</option>
+					<option value="<=">≤</option>
+				</select>
+				<input type="checkbox" name="agent_${team}_${agentNum-1}_has_ultimate" />
+				<input type="checkbox" name="agent_${team}_${agentNum-1}_has_spike" />
+			`;
+			teamEl.appendChild(agent);
+			if (agentNum == maxAgents) {
+				document.getElementById(`add_team_${team}`).style.display = 'none';
+			}
+			if (teamEl.children.length > 0) {
+				document.getElementById(`remove_team_${team}`).style.display = 'block';
+			}
+		}
+		if (teamEl.children.length == 0) {
+			document.getElementById(`remove_team_${team}`).style.display = 'none';
+		}
+	}
+
+	function removeAgent(team) {
+		var teamEl = document.getElementById('team_'+team);
+		var agentNum = teamEl.children.length;
+		if (agentNum > 0) {
+			teamEl.removeChild(teamEl.lastElementChild);
+			if (agentNum == maxAgents) {
+				document.getElementById(`add_team_${team}`).style.display = 'block';
+			}
+			if (teamEl.children.length == 0) {
+				document.getElementById(`remove_team_${team}`).style.display = 'none';
+			}
+		}
+	}
+</script>
+</head>
+<body>
+		<form method="POST" action="{{ url_for('search') }}">
+			<h1>Agent Form</h1>
+			<div class="container">
+				<div class="team team-1">
+	<h2>Team 1</h2>
+	<div class="search">
+		<label for="team_1_name">Team name:</label>
+		<input type="text" id="team_1_name" name="team_1_name" />
+		<br />
+		<label for="team_1_is_attacking">Is attacking:</label>
+		<input type="checkbox" id="team_1_is_attacking" name="team_1_is_attacking" />
+	</div>
+	<div id="team_1">
+		<div class="agent">
+			<label>Agent 1</label>
+			<select name="agent_1_0_name">
+				<option value="agent1">Agent 1</option>
+				<option value="agent2">Agent 2</option>
+				<option value="agent3">Agent 3</option>
+			</select>
+			<input type="text" name="agent_1_0_player_name" placeholder="Player name" />
+			<input type="text" name="agent_1_0_gun" placeholder="Gun" />
+			<input type="number" name="agent_1_0_health_min" placeholder="Health" />
+			<select name="agent_1_0_health_compare">
+				<option value=">=">≥</option>
+				<option value="=">=</option>
+				<option value="<=">≤</option>
+			</select>
+			<input type="number" name="agent_1_0_armor_min" placeholder="Armor" />
+			<select name="agent_1_0_armor_compare">
+				<option value=">=">≥</option>
+				<option value="=">=</option>
+				<option value="<=">≤</option>
+			</select>
+			<input type="number" name="agent_1_0_credits_min" placeholder="Credits" />
+			<select name="agent_1_0_credits_compare">
+				<option value=">=">≥</option>
+				<option value="=">=</option>
+				<option value="<=">≤</option>
+			</select>
+			<input type="number" name="agent_1_0_ultimate_points_min" placeholder="Ultimate points" />
+			<select name="agent_1_0_ultimate_points_compare">
+				<option value=">=">≥</option>
+				<option value="=">=</option>
+				<option value="<=">≤</option>
+			</select>
+			<input type="checkbox" name="agent_1_0_has_ultimate" />
+			<input type="checkbox" name="agent_1_0_has_spike" />
+			<button type="button" class="remove-agent" onclick="removeAgent(1)">Remove Agent</button>
+		</div>
+		<div class="add-team">
+			<button type="button" id="add_team_1" onclick="addAgent(1)">Add Agent</button>
+		</div>
+	</div>
+	<button type="button" class="remove-team" id="remove_team_1" onclick="removeAgent(1)">Remove Team</button>
+    </div>
+            </div>
+            			<div class="container">
+            <div class="team team-2">
+	<h2>Team 2</h2>
+	<div class="search">
+		<label for="team_2_name">Team name:</label>
+		<input type="text" id="team_2_name" name="team_2_name" />
+		<br />
+		<label for="team_2_is_attacking">Is attacking:</label>
+		<input type="checkbox" id="team_2_is_attacking" name="team_2_is_attacking" />
+	</div>
+	<div id="team_2">
+		<div class="agent">
+			<label>Agent 1</label>
+			<select name="agent_2_0_name">
+				<option value="agent1">Agent 1</option>
+				<option value="agent2">Agent 2</option>
+				<option value="agent3">Agent 3</option>
+			</select>
+			<input type="text" name="agent_2_0_player_name" placeholder="Player name" />
+			<input type="text" name="agent_2_0_gun" placeholder="Gun" />
+			<input type="number" name="agent_2_0_health_min" placeholder="Health" />
+			<select name="agent_2_0_health_compare">
+				<option value=">=">≥</option>
+				<option value="=">=</option>
+				<option value="<=">≤</option>
+			</select>
+			<input type="number" name="agent_2_0_armor_min" placeholder="Armor" />
+			<select name="agent_2_0_armor_compare">
+				<option value=">=">≥</option>
+				<option value="=">=</option>
+				<option value="<=">≤</option>
+			</select>
+			<input type="number" name="agent_2_0_credits_min" placeholder="Credits" />
+			<select name="agent_2_0_credits_compare">
+				<option value=">=">≥</option>
+				<option value="=">=</option>
+				<option value="<=">≤</option>
+			</select>
+			<input type="number" name="agent_2_0_ultimate_points_min" placeholder="Ultimate points" />
+			<select name="agent_2_0_ultimate_points_compare">
+				<option value=">=">≥</option>
+				<option value="=">=</option>
+				<option value="<=">≤</option>
+			</select>
+			<input type="checkbox" name="agent_2_0_has_ultimate" />
+			<input type="checkbox" name="agent_2_0_has_spike" />
+			<button type="button" class="remove-agent" onclick="removeAgent(2)">Remove Agent</button>
+		</div>
+		<div class="add-team">
+			<button type="button" id="add_team_2" onclick="addAgent(2)">Add Agent</button>
+		</div>
+	</div>
+	<button type="button" class="remove-team" id="remove_team_2" onclick="removeAgent(2)">Remove Team</button>
+</div>
+                        </div>
+              <div class="clear"></div>
+
+</html>
+
