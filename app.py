@@ -2,14 +2,10 @@ from flask import Flask, g, render_template, request
 import json
 import pandas as pd
 from pathlib import Path
-import psycopg2
-import os
+from valo_db import ValoDatabase
+from urllib.parse import quote_plus
 
 app = Flask(__name__, static_url_path='/static')
-HOST_NAME = os.getenv('HOST_NAME')
-DB_NAME = os.getenv('DB_NAME')
-USER_NAME = os.getenv('USER_NAME')
-PW = os.getenv('PW')
 
 
 @app.teardown_appcontext
@@ -19,16 +15,17 @@ def close_connection(exception):
         db.close()
 
 
-def query_db(query, params=None):
-    conn = psycopg2.connect(
-        host=HOST_NAME,
-        database=DB_NAME,
-        user=USER_NAME,
-        password=PW
-    )
-    df = pd.read_sql_query(query, conn, params=params)
-    return df
+valo_db = ValoDatabase()
 
+
+@app.template_filter('urlencode')
+def urlencode_filter(data):
+    return quote_plus(data)
+
+
+@app.template_filter('strip_spaces')
+def strip_spaces(data):
+    return data.strip()
 
 def get_dropdown_checkbox_html(category_name, extension='webp'):
     folder_path = Path(f'static/{category_name}s')
@@ -44,10 +41,6 @@ def get_dropdown_checkbox_html(category_name, extension='webp'):
     return html
 
 
-INT_RANGE_KEYS = ["credits", "health", "armor", "ult_points"]
-STRING_LIST_KEYS = ["agent_name", "player_name", "gun"]
-
-
 def search_for_agent_state_in_db_from_list(search_json_list, join_by_team=True):
     unique_cols = ['game_uuid', 'round_number', 'frames_since_round_start']
     if join_by_team:
@@ -55,40 +48,10 @@ def search_for_agent_state_in_db_from_list(search_json_list, join_by_team=True):
     agent_state_df = None
     for agent_state_info in search_json_list:
         if agent_state_df is None:
-            agent_state_df = search_for_agent_state_in_db(agent_state_info)
+            agent_state_df = valo_db.search_for_agent_state_in_db(agent_state_info, join_by_team=join_by_team)
         else:
-            agent_state_df = pd.merge(agent_state_df, search_for_agent_state_in_db(agent_state_info),
+            agent_state_df = pd.merge(agent_state_df, valo_db.search_for_agent_state_in_db(agent_state_info),
                                       on=unique_cols)
-    return agent_state_df
-
-
-def search_for_agent_state_in_db(search_json):
-    where_conditions_list = []
-    params = {}
-    for key, value in search_json.items():
-        if key in INT_RANGE_KEYS:
-            where_conditions_list.append(f"{key} BETWEEN %({key}_min)s AND %({key}_max)s ")
-            params[f"{key}_min"] = value[0]
-            params[f"{key}_max"] = value[0]
-        elif key in STRING_LIST_KEYS:
-            where_conditions_list.append(f"{key} = ANY(%({key})s)")
-            params[key] = value
-    where_condition_string = f"WHERE {' AND '.join(where_conditions_list)}"
-
-    state_count_min = 1
-    state_count_max = 5
-    if 'state_count' in search_json:
-        state_count_min = search_json['state_count'][0]
-        state_count_max = search_json['state_count'][1]
-    params['state_count_min'] = state_count_min
-    params['state_count_max'] = state_count_max
-
-    cte = "WITH agent_state_select AS (SELECT round_number, frames_since_round_start, game_uuid, is_attacking, " \
-          f"COUNT(*) as agent_state_count FROM agent_state {where_condition_string} " \
-          "GROUP BY round_number, frames_since_round_start, game_uuid, is_attacking)" \
-          "SELECT * FROM agent_state_select WHERE agent_state_count BETWEEN %(state_count_min)s AND %(state_count_max)s"
-    agent_state_df = query_db(cte, params=params)
-    agent_state_df.drop('agent_state_count', axis=1, inplace=True)
     return agent_state_df
 
 
@@ -109,6 +72,23 @@ def create_embed_link(row, start_frame_column):
     return embed_link
 
 
+def create_normal_link(row, start_frame_column):
+    # Extract the video ID from the YouTube link
+    video_id = row['vod_link'].split('=')[1]
+
+    # Construct the base of the normal link
+    link_base = 'https://www.youtube.com/watch?v={}'.format(video_id)
+
+    # If start_time is provided, add it to the embed link
+    if row[start_frame_column]:
+        link_base += '&t={}'.format(row[start_frame_column] // row['vod_fps'])
+
+    # Add the remaining parameters to the embed link
+    full_link = link_base
+
+    return full_link
+
+
 def add_winning_team_to_df(row):
     if (1 <= row['round_number'] <= 12) or \
             (row['round_number'] > 24 and row['round_number'] % 2 != 0):
@@ -124,12 +104,12 @@ def add_winning_team_to_df(row):
 
 
 def convert_to_html_showable_df(agent_round_map_merge_df):
-    agent_round_map_merge_df['round_start_embed_vod'] = \
-        agent_round_map_merge_df.apply(create_embed_link, axis=1, args=('round_start_frame',))
-    agent_round_map_merge_df['first_true_embed_vod'] = \
-        agent_round_map_merge_df.apply(create_embed_link, axis=1, args=('first_true_frame_in_round',))
-    agent_round_map_merge_df['last_true_embed_vod'] = \
-        agent_round_map_merge_df.apply(create_embed_link, axis=1, args=('last_true_frame_in_round',))
+    agent_round_map_merge_df['Round Start'] = \
+        agent_round_map_merge_df.apply(create_normal_link, axis=1, args=('round_start_frame',))
+    agent_round_map_merge_df['First True'] = \
+        agent_round_map_merge_df.apply(create_normal_link, axis=1, args=('first_true_frame_in_round',))
+    agent_round_map_merge_df['Last True'] = \
+        agent_round_map_merge_df.apply(create_normal_link, axis=1, args=('last_true_frame_in_round',))
     drop_cols = ['vod_link', 'vod_fps', 'round_start_frame', 'first_true_frame_in_round',
                  'last_true_frame_in_round']
     for col in drop_cols:
@@ -137,76 +117,131 @@ def convert_to_html_showable_df(agent_round_map_merge_df):
     return agent_round_map_merge_df
 
 
+def get_agent_round_map_merge_df(json_data, join_by_team=False):
+    if 'agent_state_list' not in json_data:
+        return None, "No agent_state_list found in JSON data."
+    agent_state_list = json_data['agent_state_list']
+    agent_state_df = search_for_agent_state_in_db_from_list(agent_state_list, join_by_team=join_by_team)
+    if len(agent_state_df) == 0:
+        return None, "Nothing found matching your query."
+    else:
+
+
+        round_info_df = valo_db.get_unique_rounds(agent_state_df)
+
+        map_info_df = valo_db.get_unique_maps(agent_state_df)
+        agent_round_merge_df = pd.merge(agent_state_df, round_info_df, on=('round_number', 'game_uuid'))
+        agent_round_map_merge_df = pd.merge(agent_round_merge_df, map_info_df, on='game_uuid')
+        agent_round_map_merge_df['first_true_frame_in_round'] = \
+            agent_round_map_merge_df.groupby(['round_number', 'game_uuid'])[
+                'frames_since_round_start'].transform('min') + agent_round_map_merge_df['round_start_frame']
+        agent_round_map_merge_df['last_true_frame_in_round'] = \
+            agent_round_map_merge_df.groupby(['round_number', 'game_uuid'])[
+                'frames_since_round_start'].transform('max') + agent_round_map_merge_df['round_start_frame']
+        agent_round_map_merge_df = agent_round_map_merge_df.drop('frames_since_round_start', axis=1)
+        agent_round_map_merge_df = \
+            agent_round_map_merge_df.groupby(['round_number', 'game_uuid'], as_index=False).agg(lambda x: x.iloc[0])
+        return agent_round_map_merge_df, None
+
+
 @app.route('/', methods=['GET', 'POST'])
 def form():
-    if request.method == 'POST':
+    if request.method == 'GET':
+        json_data = request.args.get('json_data', None)
+        if json_data is None:
+            return render_template('json_input.html', json_data=None)
+        json_data = json.loads(json_data)
+        return render_template('json_input.html', json_data=json_data)
+    elif request.method == 'POST':
         json_data = json.loads(request.form.get('json_data'))
-        agent_state_list = json_data['agent_state_list']
-        agent_state_df = search_for_agent_state_in_db_from_list(agent_state_list)
-        agent_state_df_dupe = agent_state_df
-        if len(agent_state_df) == 0:
-            return "NO RESULTS FOUND"
+        agent_round_map_merge_df, comment = get_agent_round_map_merge_df(json_data, join_by_team=False)
+        if agent_round_map_merge_df is None:
+            return comment
         else:
-            unique_round_tuples = agent_state_df_dupe.drop_duplicates(subset=['game_uuid', 'round_number']) \
-                [['game_uuid', 'round_number']].values.tolist()
-            unique_round_str = str(unique_round_tuples).replace('[', '(').replace(']', ')')
-            round_info_query = f"SELECT round_start_frame, round_number, attackers_won, game_uuid " \
-                               f"FROM round_info WHERE (game_uuid, round_number) IN {unique_round_str}"
-            round_info_df = query_db(round_info_query)
-
-            map_list = agent_state_df['game_uuid'].tolist()
-            map_round_str = ",".join(["'{}'".format(s.replace("'", "''")) for s in map_list])
-
-            map_info_query = f"SELECT * " \
-                             f"FROM map_info WHERE game_uuid IN ({map_round_str})"
-            map_info_df = query_db(map_info_query)
-            agent_round_merge_df = pd.merge(agent_state_df, round_info_df, on=('round_number', 'game_uuid'))
-            agent_round_map_merge_df = pd.merge(agent_round_merge_df, map_info_df, on='game_uuid')
-            agent_round_map_merge_df['first_true_frame_in_round'] = \
-                agent_round_map_merge_df.groupby(['round_number', 'game_uuid'])[
-                    'frames_since_round_start'].transform('min') + agent_round_map_merge_df['round_start_frame']
-            agent_round_map_merge_df['last_true_frame_in_round'] = \
-                agent_round_map_merge_df.groupby(['round_number', 'game_uuid'])[
-                    'frames_since_round_start'].transform('max') + agent_round_map_merge_df['round_start_frame']
-            agent_round_map_merge_df = agent_round_map_merge_df.drop('frames_since_round_start', axis=1)
-            agent_round_map_merge_df = \
-                agent_round_map_merge_df.groupby(['round_number', 'game_uuid'], as_index=False).agg(lambda x: x.iloc[0])
 
             html_showable_df = convert_to_html_showable_df(agent_round_map_merge_df)
-            col_skip = ['game_uuid', 'round_start_embed_vod', 'first_true_embed_vod', 'last_true_embed_vod']
-            vod_links = ['round_start_embed_vod', 'first_true_embed_vod', 'last_true_embed_vod']
+            col_skip = ['game_uuid', 'Round Start', 'First True', 'Last True']
+            vod_links = ['Round Start', 'First True', 'Last True']
 
             return render_template('show_video.html', agent_state_table=html_showable_df,
                                    titles=agent_round_map_merge_df.columns.values, col_skip=col_skip,
-                                   vod_links=vod_links)
+                                   vod_links=vod_links, counts=[])
 
     else:
         return render_template('json_input.html')
 
 
-def get_rounds_map_df_by_uuid(game_uuid):
-    game_uuid = str(game_uuid)
-    rounds_query = "SELECT round_number, attackers_won, total_agent_events, round_start_frame," \
-                   "        game_uuid " \
-                   "FROM round_info WHERE game_uuid = %(game_uuid)s"
-    params = {'game_uuid': game_uuid}
-    rounds_df = query_db(rounds_query, params)
+@app.route('/versus', methods=['GET', 'POST'])
+def versus_form():
+    if request.method == 'GET':
+        team_1_json_data = request.args.get('team_1_json_data', None)
+        team_2_json_data = request.args.get('team_2_json_data', None)
+        if team_1_json_data is None or team_2_json_data is None:
+            return render_template('versus_input.html', team_1_json_data=None, team_2_json_data=None)
+        team_1_json_data = json.loads(team_1_json_data)
+        team_2_json_data = json.loads(team_2_json_data)
+        return render_template('versus_input.html', team_1_json_data=team_1_json_data, team_2_json_data=team_2_json_data)
+    if request.method == 'POST':
+        team_1_json_data = json.loads(request.form.get('team_1_json_data'))
+        team_2_json_data = json.loads(request.form.get('team_2_json_data'))
+    else:
+        return render_template('versus_input.html', team_1_json_data=None, team_2_json_data=None)
 
-    map_query = "SELECT * FROM map_info WHERE game_uuid = %(game_uuid)s"
-    map_df = query_db(map_query, params)
-    return rounds_df, map_df
+    team_1_agent_round_map_merge_df, comment = get_agent_round_map_merge_df(team_1_json_data, join_by_team=True)
+    team_2_agent_round_map_merge_df, comment = get_agent_round_map_merge_df(team_2_json_data, join_by_team=True)
+    if team_2_agent_round_map_merge_df is None or team_1_agent_round_map_merge_df is None:
+        return comment
+    else:
+        # perform a cross join
+        team_1_agent_round_map_merge_df['key'] = 1
+        team_2_agent_round_map_merge_df['key'] = 1
+        merged_df = pd.merge(team_1_agent_round_map_merge_df, team_2_agent_round_map_merge_df, on='key')
+
+        # filter rows based on column matches and overlapping intervals
+        merged_df = merged_df[
+            (merged_df['game_uuid_x'] == merged_df['game_uuid_y']) &
+            (merged_df['round_number_x'] == merged_df['round_number_y']) &
+            (merged_df['is_attacking_x'] != merged_df['is_attacking_y']) &
+            (merged_df['first_true_frame_in_round_x'] <= merged_df['last_true_frame_in_round_y']) &
+            (merged_df['last_true_frame_in_round_x'] >= merged_df['first_true_frame_in_round_y'])
+            ]
+
+        team_2_agent_round_map_with_suffix = [f"{col}_y" for col in team_2_agent_round_map_merge_df.columns]
+
+        # remove temporary columns from df2 and merged_df
+        merged_df['first_true_frame_in_round'] = merged_df['first_true_frame_in_round_x'].where(
+            merged_df['first_true_frame_in_round_x'] > merged_df['first_true_frame_in_round_y'],
+            merged_df['first_true_frame_in_round_y'])
+        merged_df['last_true_frame_in_round'] = merged_df['last_true_frame_in_round_x'].where(
+            merged_df['last_true_frame_in_round_x'] < merged_df['last_true_frame_in_round_y'],
+            merged_df['last_true_frame_in_round_y'])
+        merged_df.drop(['key', 'last_true_frame_in_round_x', 'first_true_frame_in_round_x'], axis=1, inplace=True)
+        merged_df = merged_df[[col for col in merged_df.columns if col not in team_2_agent_round_map_with_suffix]]
+        merged_df.columns = merged_df.columns.str.rstrip('_x')
+        merged_df['team_1_won_round'] = merged_df['is_attacking'] == merged_df['attackers_won']
+        html_showable_df = convert_to_html_showable_df(merged_df)
+        col_skip = ['game_uuid', 'Round Start', 'First True', 'Last True']
+        vod_links = ['Round Start', 'First True', 'Last True']
+
+        counts = {}
+
+        if 'team_1_won_round' in merged_df:
+            counts['true_count'] = merged_df['team_1_won_round'].value_counts().get(True, 0)
+            counts['false_count'] = merged_df['team_1_won_round'].value_counts().get(False, 0)
+
+        return render_template('show_video.html', agent_state_table=html_showable_df,
+                               titles=merged_df.columns.values, col_skip=col_skip,
+                               vod_links=vod_links, counts=counts)
 
 
 @app.route('/maps/<uuid:map_id>')
 def map_page(map_id):
-    # use the map_id to retrieve the necessary variables from your data source
-    # ...
-    rounds_df, map_df = get_rounds_map_df_by_uuid(map_id)
+    rounds_df, map_df = valo_db.get_rounds_map_df_by_uuid(map_id)
     round_map_df = rounds_df.merge(map_df, on='game_uuid')
-    round_map_df['round_start_embed_vod'] = \
+    round_map_df['Round Start'] = \
         round_map_df.apply(create_embed_link, axis=1, args=('round_start_frame',))
     round_map_df['round_winning_team'] = round_map_df.apply(add_winning_team_to_df, axis=1)
-    vod_links = ['round_start_embed_vod']
+    vod_links = ['Round Start']
 
     return render_template('map.html',
                            team_a=round_map_df.iloc[0]['first_half_attacking_team'],
@@ -215,35 +250,6 @@ def map_page(map_id):
                            map_name=round_map_df.iloc[0]['map_name'],
                            vod_links=vod_links,
                            rounds=round_map_df)
-
-
-# @app.route('/data/', methods = ['POST', 'GET'])
-# def data():
-#     agent_html = get_dropdown_checkbox_html('agent')
-#     gun_html = get_dropdown_checkbox_html('gun')
-#     return render_template('test_form.html', agent_html=agent_html, gun_html=gun_html)
-#     if request.method == 'GET':
-#         return f"The URL /data is accessed directly. Try going to '/form' to submit form"
-#     if request.method == 'POST':
-#         form_data = request.form
-#         json = form_data["json"]
-#
-#         df = query_db(f"SELECT round_number, game_id, frames_since_round_start, gun_count FROM guns_by_round "
-#                       f"WHERE gun = '{gun}' AND gun_count > {count}")
-#         game_ids = ','.join([str(x) for x in df['game_id'].unique().tolist()])
-#         round_numbers = ','.join([str(x) for x in df['round_number'].unique().tolist()])
-#
-#         round_df = query_db(f"SELECT frames_since_vod_start, game_id, round_number FROM rounds "
-#                             f"WHERE game_id IN ({game_ids}) AND round_number IN ({round_numbers})")
-#         game_df = query_db(f"SELECT vod_link, game_id FROM games WHERE game_id IN ({game_ids})")
-#         merged_df = round_df.merge(game_df, left_on='game_id', right_on='game_id')
-#         merged_df = df.merge(merged_df, left_on=('game_id', 'round_number'), right_on=('game_id', 'round_number'))
-#         merged_df['seconds_since_round_start'] = merged_df['frames_since_round_start'] // 60
-#         merged_df['seconds_since_vod_start'] = merged_df['frames_since_vod_start'] // 60 \
-#                                                + merged_df['seconds_since_round_start']
-#         merged_df['seconds_since_vod_start'] = merged_df['seconds_since_vod_start'].astype(str)
-#         merged_df['full_vod_link'] = merged_df[["vod_link", "seconds_since_vod_start"]].apply("?start=".join, axis=1)
-#         return render_template('data.html',df = merged_df)
 
 
 if __name__ == '__main__':

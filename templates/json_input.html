@@ -4,7 +4,7 @@
     <title>Flask Form Example</title>
           <style>
       /* Increase the size of the JSON data text area */
-      #json_data {
+      .json_data {
         width: 100%;
         height: 300px;
       }
@@ -13,25 +13,14 @@
   <body>
     <form id="myForm" action="/" method="post">
       <label for="json_data">JSON Data:</label>
-      <textarea name="json_data" id="json_data"></textarea>
+      <textarea name="json_data" id="json_data" class="json_data">{% if json_data is not none %}{{ json_data | tojson | safe | strip_spaces }}{% endif %}</textarea>
 
       <input type="submit" value="Submit">
     </form>
 
-    <script>
-      // When the form is submitted, validate the JSON data before submitting the form
-      document.getElementById('myForm').addEventListener('submit', function(event) {
-        event.preventDefault();
+    This link should take you back to the same page with the same data you entered above:<br>
+    <a id="update_link" href="/">https://valorantvodsearcher.com/</a><br>
 
-        var json_data = document.getElementById('json_data').value;
-
-        try {
-          JSON.parse(json_data);
-          this.submit();
-        } catch (e) {
-          alert('Invalid JSON data');
-        }
-      });
-    </script>
+    <script src="{{ url_for('static', filename='js/search_pages.js') }}"></script>
   </body>
 </html>
