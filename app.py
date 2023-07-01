@@ -1,3 +1,4 @@
+#!/bin/python3
 from flask import Flask, g, render_template, request
 import json
 import pandas as pd
@@ -26,6 +27,7 @@ def urlencode_filter(data):
 @app.template_filter('strip_spaces')
 def strip_spaces(data):
     return data.strip()
+
 
 def get_dropdown_checkbox_html(category_name, extension='webp'):
     folder_path = Path(f'static/{category_name}s')
@@ -253,4 +255,4 @@ def map_page(map_id):
 
 
 if __name__ == '__main__':
-    app.run(port=1234)
+    app.run(host='0.0.0.0', port=1234)
