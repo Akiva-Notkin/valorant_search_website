@@ -1,16 +1,6 @@
-<!DOCTYPE html>
-<html>
-  <head>
-    <title>Flask Form Example</title>
-          <style>
-      /* Increase the size of the JSON data text area */
-      .json_data {
-        width: 100%;
-        height: 300px;
-      }
-    </style>
-  </head>
-  <body>
+{% extends 'input_base.html' %}
+{% block title %} Valorant VOD Normal Search {% endblock %}
+{% block form %}
     <form id="myForm" action="/versus" method="post">
       <label for="team_1_json_data">Team 1 JSON Data:</label>
       <textarea name="team_1_json_data" id="team_1_json_data" class="json_data">{% if team_1_json_data is not none and team_2_json_data is not none %}{{ team_1_json_data | tojson | safe | strip_spaces }}{% endif %}</textarea>
@@ -19,11 +9,5 @@
 
       <input type="submit" value="Submit">
     </form>
+{% endblock %}
 
-    <br>
-    This link should take you back to the same page with the same data you entered above:<br>
-    <a id="update_link" href="/versus">https://valorantvodsearcher.com/versus</a><br>
-
-    <script src="{{ url_for('static', filename='js/search_pages.js') }}"></script>
-  </body>
-</html>

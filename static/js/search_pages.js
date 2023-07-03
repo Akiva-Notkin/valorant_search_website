@@ -38,16 +38,17 @@ window.onload = function () {
     }
 
     createLocalLinks(json_dictionary);
-    document.getElementById('myForm').addEventListener('submit', function (event) {
-    event.preventDefault();
+    let myForm = document.getElementById('myForm');
+    myForm.addEventListener('submit', function (event) {
+        event.preventDefault();
 
-    try {
-        for (var i = 0; i < json_elements.length; i++) {
-            JSON.parse(json_elements[i].value);
+        try {
+            for (var i = 0; i < json_elements.length; i++) {
+                JSON.parse(json_elements[i].value);
+            }
+            HTMLFormElement.prototype.submit.call(myForm);
+        } catch (e) {
+            alert('Invalid JSON data' + e);
         }
-        this.submit();
-    } catch (e) {
-        alert('Invalid JSON data');
-    }
-});
+    });
 };

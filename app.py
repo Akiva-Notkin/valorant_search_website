@@ -8,6 +8,10 @@ from urllib.parse import quote_plus
 
 app = Flask(__name__, static_url_path='/static')
 
+INT_RANGE_ROUND_KEYS = ["round_number", "seconds_into_round"]
+STRING_LIST_ROUND_KEYS = ["map_name", "game_uuid", "first_half_attacking_team", "first_half_defending_team"]
+BOOL_ROUND_KEYS = ["attackers_won"]
+
 
 @app.teardown_appcontext
 def close_connection(exception):
@@ -119,30 +123,57 @@ def convert_to_html_showable_df(agent_round_map_merge_df):
     return agent_round_map_merge_df
 
 
+def filter_agent_round_map_merge_df(agent_round_map_merge_df, json_data):
+    """
+    Takes a dataframe of agent state data and filters it based on the JSON data provided.
+    :param agent_round_map_merge_df:
+    :param json_data:
+    :return:
+    """
+    for key, value in json_data.items():
+        if key in INT_RANGE_ROUND_KEYS:
+            if key == "seconds_into_round":
+                key = "frames_since_round_start"
+                filter_list = (agent_round_map_merge_df[key] // agent_round_map_merge_df["vod_fps"] >= value[0]) \
+                              & (agent_round_map_merge_df[key] // agent_round_map_merge_df["vod_fps"] <= value[1])
+            else:
+                filter_list = (agent_round_map_merge_df[key] >= value[0]) & (agent_round_map_merge_df[key] <= value[1])
+            agent_round_map_merge_df = agent_round_map_merge_df[filter_list]
+        elif key in STRING_LIST_ROUND_KEYS:
+            agent_round_map_merge_df = agent_round_map_merge_df[agent_round_map_merge_df[key].isin(value)]
+        elif key in BOOL_ROUND_KEYS:
+            agent_round_map_merge_df = agent_round_map_merge_df[agent_round_map_merge_df[key] == value]
+
+    return agent_round_map_merge_df
+
+
 def get_agent_round_map_merge_df(json_data, join_by_team=False):
     if 'agent_state_list' not in json_data:
         return None, "No agent_state_list found in JSON data."
     agent_state_list = json_data['agent_state_list']
     agent_state_df = search_for_agent_state_in_db_from_list(agent_state_list, join_by_team=join_by_team)
-    # rounds_df = search_for_rounds_from_json_data(json_data, join_by_team=join_by_team)
     if len(agent_state_df) == 0:
-        return None, "Nothing found matching your query."
-    else:
+        raise KeyError("No agent state data found in database.")
 
-        round_info_df = valo_db.get_unique_rounds(agent_state_df)
-        map_info_df = valo_db.get_unique_maps(agent_state_df)
-        agent_round_merge_df = pd.merge(agent_state_df, round_info_df, on=('round_number', 'game_uuid'))
-        agent_round_map_merge_df = pd.merge(agent_round_merge_df, map_info_df, on='game_uuid')
-        agent_round_map_merge_df['first_true_frame_in_round'] = \
-            agent_round_map_merge_df.groupby(['round_number', 'game_uuid'])[
-                'frames_since_round_start'].transform('min') + agent_round_map_merge_df['round_start_frame']
-        agent_round_map_merge_df['last_true_frame_in_round'] = \
-            agent_round_map_merge_df.groupby(['round_number', 'game_uuid'])[
-                'frames_since_round_start'].transform('max') + agent_round_map_merge_df['round_start_frame']
-        agent_round_map_merge_df = agent_round_map_merge_df.drop('frames_since_round_start', axis=1)
-        agent_round_map_merge_df = \
-            agent_round_map_merge_df.groupby(['round_number', 'game_uuid'], as_index=False).agg(lambda x: x.iloc[0])
-        return agent_round_map_merge_df, None
+    round_info_df = valo_db.get_unique_rounds(agent_state_df)
+    map_info_df = valo_db.get_unique_maps(agent_state_df)
+    agent_round_merge_df = pd.merge(agent_state_df, round_info_df, on=('round_number', 'game_uuid'), how='outer')
+    agent_round_map_merge_df = pd.merge(agent_round_merge_df, map_info_df, on='game_uuid', how='outer')
+    agent_round_map_merge_df = filter_agent_round_map_merge_df(agent_round_map_merge_df, json_data)
+
+    if len(agent_round_map_merge_df) == 0:
+        raise KeyError("No agent state data found after filtering with rounds.")
+
+    agent_round_map_merge_df['first_true_frame_in_round'] = \
+        agent_round_map_merge_df.groupby(['round_number', 'game_uuid'])[
+            'frames_since_round_start'].transform('min') + agent_round_map_merge_df['round_start_frame']
+    agent_round_map_merge_df['last_true_frame_in_round'] = \
+        agent_round_map_merge_df.groupby(['round_number', 'game_uuid'])[
+            'frames_since_round_start'].transform('max') + agent_round_map_merge_df['round_start_frame']
+    agent_round_map_merge_df = agent_round_map_merge_df.drop('frames_since_round_start', axis=1)
+    agent_round_map_merge_df = \
+        agent_round_map_merge_df.groupby(['round_number', 'game_uuid'], as_index=False).agg(lambda x: x.iloc[0])
+    return agent_round_map_merge_df
 
 
 @app.route('/', methods=['GET', 'POST'])
@@ -154,19 +185,19 @@ def form():
         json_data = json.loads(json_data)
         return render_template('json_input.html', json_data=json_data)
     elif request.method == 'POST':
-        json_data = json.loads(request.form.get('json_data'))
-        agent_round_map_merge_df, comment = get_agent_round_map_merge_df(json_data, join_by_team=False)
-        if agent_round_map_merge_df is None:
-            return comment
-        else:
+        try:
+            json_data = json.loads(request.form.get('json_data'))
+            agent_round_map_merge_df = get_agent_round_map_merge_df(json_data, join_by_team=False)
+        except KeyError as ke:
+            return ke
 
-            html_showable_df = convert_to_html_showable_df(agent_round_map_merge_df)
-            col_skip = ['game_uuid', 'Round Start', 'First True', 'Last True']
-            vod_links = ['Round Start', 'First True', 'Last True']
+        html_showable_df = convert_to_html_showable_df(agent_round_map_merge_df)
+        col_skip = ['game_uuid', 'Round Start', 'First True', 'Last True']
+        vod_links = ['Round Start', 'First True', 'Last True']
 
-            return render_template('show_video.html', agent_state_table=html_showable_df,
-                                   titles=agent_round_map_merge_df.columns.values, col_skip=col_skip,
-                                   vod_links=vod_links, counts=[])
+        return render_template('show_video.html', agent_state_table=html_showable_df,
+                               titles=agent_round_map_merge_df.columns.values, col_skip=col_skip,
+                               vod_links=vod_links, counts=[])
 
     else:
         return render_template('json_input.html')
@@ -181,58 +212,60 @@ def versus_form():
             return render_template('versus_input.html', team_1_json_data=None, team_2_json_data=None)
         team_1_json_data = json.loads(team_1_json_data)
         team_2_json_data = json.loads(team_2_json_data)
-        return render_template('versus_input.html', team_1_json_data=team_1_json_data, team_2_json_data=team_2_json_data)
+        return render_template('versus_input.html', team_1_json_data=team_1_json_data,
+                               team_2_json_data=team_2_json_data)
     if request.method == 'POST':
         team_1_json_data = json.loads(request.form.get('team_1_json_data'))
         team_2_json_data = json.loads(request.form.get('team_2_json_data'))
     else:
         return render_template('versus_input.html', team_1_json_data=None, team_2_json_data=None)
 
-    team_1_agent_round_map_merge_df, comment = get_agent_round_map_merge_df(team_1_json_data, join_by_team=True)
-    team_2_agent_round_map_merge_df, comment = get_agent_round_map_merge_df(team_2_json_data, join_by_team=True)
-    if team_2_agent_round_map_merge_df is None or team_1_agent_round_map_merge_df is None:
-        return comment
-    else:
-        # perform a cross join
-        team_1_agent_round_map_merge_df['key'] = 1
-        team_2_agent_round_map_merge_df['key'] = 1
-        merged_df = pd.merge(team_1_agent_round_map_merge_df, team_2_agent_round_map_merge_df, on='key')
+    try:
+        team_1_agent_round_map_merge_df = get_agent_round_map_merge_df(team_1_json_data, join_by_team=True)
+        team_2_agent_round_map_merge_df = get_agent_round_map_merge_df(team_2_json_data, join_by_team=True)
+    except KeyError as ke:
+        return ke
 
-        # filter rows based on column matches and overlapping intervals
-        merged_df = merged_df[
-            (merged_df['game_uuid_x'] == merged_df['game_uuid_y']) &
-            (merged_df['round_number_x'] == merged_df['round_number_y']) &
-            (merged_df['is_attacking_x'] != merged_df['is_attacking_y']) &
-            (merged_df['first_true_frame_in_round_x'] <= merged_df['last_true_frame_in_round_y']) &
-            (merged_df['last_true_frame_in_round_x'] >= merged_df['first_true_frame_in_round_y'])
-            ]
+    # perform a cross join
+    team_1_agent_round_map_merge_df['key'] = 1
+    team_2_agent_round_map_merge_df['key'] = 1
+    merged_df = pd.merge(team_1_agent_round_map_merge_df, team_2_agent_round_map_merge_df, on='key')
 
-        team_2_agent_round_map_with_suffix = [f"{col}_y" for col in team_2_agent_round_map_merge_df.columns]
+    # filter rows based on column matches and overlapping intervals
+    merged_df = merged_df[
+        (merged_df['game_uuid_x'] == merged_df['game_uuid_y']) &
+        (merged_df['round_number_x'] == merged_df['round_number_y']) &
+        (merged_df['is_attacking_x'] != merged_df['is_attacking_y']) &
+        (merged_df['first_true_frame_in_round_x'] <= merged_df['last_true_frame_in_round_y']) &
+        (merged_df['last_true_frame_in_round_x'] >= merged_df['first_true_frame_in_round_y'])
+        ]
 
-        # remove temporary columns from df2 and merged_df
-        merged_df['first_true_frame_in_round'] = merged_df['first_true_frame_in_round_x'].where(
-            merged_df['first_true_frame_in_round_x'] > merged_df['first_true_frame_in_round_y'],
-            merged_df['first_true_frame_in_round_y'])
-        merged_df['last_true_frame_in_round'] = merged_df['last_true_frame_in_round_x'].where(
-            merged_df['last_true_frame_in_round_x'] < merged_df['last_true_frame_in_round_y'],
-            merged_df['last_true_frame_in_round_y'])
-        merged_df.drop(['key', 'last_true_frame_in_round_x', 'first_true_frame_in_round_x'], axis=1, inplace=True)
-        merged_df = merged_df[[col for col in merged_df.columns if col not in team_2_agent_round_map_with_suffix]]
-        merged_df.columns = merged_df.columns.str.rstrip('_x')
-        merged_df['team_1_won_round'] = merged_df['is_attacking'] == merged_df['attackers_won']
-        html_showable_df = convert_to_html_showable_df(merged_df)
-        col_skip = ['game_uuid', 'Round Start', 'First True', 'Last True']
-        vod_links = ['Round Start', 'First True', 'Last True']
+    team_2_agent_round_map_with_suffix = [f"{col}_y" for col in team_2_agent_round_map_merge_df.columns]
 
-        counts = {}
+    # remove temporary columns from df2 and merged_df
+    merged_df['first_true_frame_in_round'] = merged_df['first_true_frame_in_round_x'].where(
+        merged_df['first_true_frame_in_round_x'] > merged_df['first_true_frame_in_round_y'],
+        merged_df['first_true_frame_in_round_y'])
+    merged_df['last_true_frame_in_round'] = merged_df['last_true_frame_in_round_x'].where(
+        merged_df['last_true_frame_in_round_x'] < merged_df['last_true_frame_in_round_y'],
+        merged_df['last_true_frame_in_round_y'])
+    merged_df.drop(['key', 'last_true_frame_in_round_x', 'first_true_frame_in_round_x'], axis=1, inplace=True)
+    merged_df = merged_df[[col for col in merged_df.columns if col not in team_2_agent_round_map_with_suffix]]
+    merged_df.columns = merged_df.columns.str.rstrip('_x')
+    merged_df['team_1_won_round'] = merged_df['is_attacking'] == merged_df['attackers_won']
+    html_showable_df = convert_to_html_showable_df(merged_df)
+    col_skip = ['game_uuid', 'Round Start', 'First True', 'Last True']
+    vod_links = ['Round Start', 'First True', 'Last True']
 
-        if 'team_1_won_round' in merged_df:
-            counts['true_count'] = merged_df['team_1_won_round'].value_counts().get(True, 0)
-            counts['false_count'] = merged_df['team_1_won_round'].value_counts().get(False, 0)
+    counts = {}
 
-        return render_template('show_video.html', agent_state_table=html_showable_df,
-                               titles=merged_df.columns.values, col_skip=col_skip,
-                               vod_links=vod_links, counts=counts)
+    if 'team_1_won_round' in merged_df:
+        counts['true_count'] = merged_df['team_1_won_round'].value_counts().get(True, 0)
+        counts['false_count'] = merged_df['team_1_won_round'].value_counts().get(False, 0)
+
+    return render_template('show_video.html', agent_state_table=html_showable_df,
+                           titles=merged_df.columns.values, col_skip=col_skip,
+                           vod_links=vod_links, counts=counts)
 
 
 @app.route('/maps/<uuid:map_id>')

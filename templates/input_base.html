@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>{% block title %}{% endblock %}</title>
+          <style>
+      /* Increase the size of the JSON data text area */
+      .json_data {
+        width: 100%;
+        height: 300px;
+      }
+
+      .big-submit-button {
+            font-size: 20px;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            color: white;
+            background-color: #4CAF50;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .big-submit-button:hover {
+            background-color: #45a049;
+        }
+
+    </style>
+  </head>
+  <body>
+    <h2>Instructions:</h2>
+
+    <ol>
+      <li>Obtain a Search JSON either by selecting one from the various examples provided here, or by constructing your own search query. You can refer to the <a href="https://github.com/Akiva-Notkin/valorant_search_website">documentation</a> for guidance.</li>
+
+      <li>Click the "Submit" button below. Please allow a few seconds for the query to execute. If your JSON is invalid, an alert will be triggered.</li>
+
+      <li>Explore your results! You will be presented with a table that provides information about the round and three links corresponding to different parts of the round:
+        <ul>
+          <li>The first link leads you to the start of the round, allowing you to view the round in its entirety.</li>
+          <li>The second link directs you to the first instance where your condition is satisfied within the round.</li>
+          <li>The third link takes you to the final instance where your condition is met, which often corresponds to the end of the round.</li>
+        </ul>
+      </li>
+    </ol>
+
+
+  {% block form %}{% endblock %}
+  <br>
+  <br>
+    This link should take you back to the same page with the same data you entered above:<br>
+    <a id="update_link" href="/">https://valorantvodsearcher.com/</a><br>
+
+    <script src="{{ url_for('static', filename='js/search_pages.js') }}"></script>
+  </body>
+</html>

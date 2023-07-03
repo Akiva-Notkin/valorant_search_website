@@ -8,8 +8,9 @@ DB_NAME = os.getenv('DB_NAME')
 USER_NAME = os.getenv('USER_NAME')
 PW = os.getenv('PW')
 
-INT_RANGE_KEYS = ["credits", "health", "armor", "ult_points", "c_util", "q_util", "e_util"]
-STRING_LIST_KEYS = ["agent_name", "player_name", "gun"]
+INT_RANGE_AGENT_KEYS = ["credits", "health", "armor", "ult_points", "c_util", "q_util", "e_util"]
+STRING_LIST_AGENT_KEYS = ["agent_name", "player_name", "gun"]
+BOOL_AGENT_KEYS = ["is_attacking"]
 
 
 class ValoDatabase:
@@ -27,12 +28,15 @@ class ValoDatabase:
         where_conditions_list = []
         params = {}
         for key, value in search_json.items():
-            if key in INT_RANGE_KEYS:
+            if key in INT_RANGE_AGENT_KEYS:
                 where_conditions_list.append(f"{key} BETWEEN %({key}_min)s AND %({key}_max)s ")
                 params[f"{key}_min"] = value[0]
                 params[f"{key}_max"] = value[1]
-            elif key in STRING_LIST_KEYS:
+            elif key in STRING_LIST_AGENT_KEYS:
                 where_conditions_list.append(f"{key} = ANY(%({key})s)")
+                params[key] = value
+            elif key in BOOL_AGENT_KEYS:
+                where_conditions_list.append(f"{key} = %({key})s")
                 params[key] = value
         where_condition_string = f"WHERE {' AND '.join(where_conditions_list)}"
 
