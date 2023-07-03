@@ -1,7 +1,9 @@
 # Valorant Vod Searcher Overview
 This README covers two main topics. 
-First, it provides documentation on how to use the search tool. 
-Second, it discusses the underlying data that powers this project.
+First, it provides documentation on how to use the search tool.  
+Second, it discusses the underlying data that powers this tool.
+
+Link to the search tool: https://valorantvodsearch
 
 ## Search and how to use it
 ### Overview
@@ -42,7 +44,8 @@ states between 0 and 30 seconds into the round.
 
 ### Agent State JSON Object
 #### What is the Agent State JSON Object?
-An Agent State JSON Object is a JSON object that represents the state of an agent at a given time.
+An Agent State JSON Object is a JSON object that represents the state of an agent at a given time. The Search JSON Object
+must include a list of Agent State JSON Objects. 
 
 #### Agent State JSON Object Fields
 Optional fields (at least one is required):
@@ -61,6 +64,9 @@ Eg. `"ult_points": [4, 10]` will query for agent states where agent has at least
 `player_name`: String_list. The name of the player. 
 Eg. `"player_name": ["HAVOC", "GUHRVN"]` will query for agent states where the player is HAVOC or GUHRVN.
 
+`is_attacking`: Bool. True if the agent is attacking, false if the agent is defending. 
+Eg. `"is_attacking": true` will query for agent states where the agent is attacking.
+
 `credits`: Int_range. The credits of the player. 
 Eg. `"credits": [1000, 2000]` will query for agent states where the player has between 1000 and 2000 credits inclusive.
 
@@ -72,6 +78,9 @@ Eg. `"q_util": [1, 2], agent_name: ["sage"]` will query for agent states where t
 
 `e_util`: Int_range. The amount of util the player has in the "e" slot. Note: If the agent is "astra" this is the amount of stars they have.
 Eg. `"e_util": [1, 1], agent_name: ["sage"]` will query for agent states where the player has exactly one "Healing Orb".
+
+`state_count`: Int_range. The amount of times this state should be true in the frame. 
+Eg. `"state_count": [1, 1], "gun": ["phantom"]` will query for agent states where there is exactly one phantom in the frame
 
 ### Types of queries
 
@@ -153,4 +162,136 @@ round must be between 0 and 30 inclusive.
 ```
 
 This query would find all VODs with two distinct agent_states Sage has a phantom or vandal, has between 46 and 50 health,
-and has at least 5 ult points, or has his ult. The VODs must also be between round 1 and 5 inclusive
+and has at least 5 ult points, or has his ult. The VODs must also be between round 1 and 5 inclusive.
+
+## Data Discussion
+### Data quality Overview
+This section is going to discuss the underlying data of the search tool. 
+Most of this section is going to be a discussion of data quality, both in terms of where it is now, 
+and also where (and how) I think data quality can be improved. 
+
+Below is a table which shows the approximate accuracy for each agent_state field.
+It was calculated on a set of 110 frames from 20 VODs. This accuracy is calculated by the amount of times the field was
+guessed correctly, divided by the total number of guesses. So for example, if there are two agents, one with a `phantom`
+and one with a `vandal` if I guess both are `phantom` then I have a .5 accuracy for the `gun` field.
+
+| Field | Accuracy |
+| --- | --- |
+| health | 0.9926739926739927 |
+| agent_name | 0.9963369963369964 |
+| player_name | 0.9133089133089133 |
+| armor | 0.8644688644688645 |
+| gun | 0.960927960927961 |
+| credits | 0.8754578754578755 |
+| ult_points | 1.0 |
+| util | 0.9951159951159951 |
+
+This shows that most frames have something incorrectly labeled. So when you construct very detailed queries, 
+its very unlikely to find something that exactly matches, because the data is not perfect.
+
+### Data quality by field
+Now I'm going to go field by field discussing the quality of the data, and how it can be improved (if at all). 
+
+#### Health
+The health field is very accurate currently. The only way I know to improve it is to throw a stupid amount of money at it. 
+I'm talking like 100x the unit price of analyzing a VOD. I don't think that would guarantee 100% accuracy anyway. So this is probably
+about what you should expect for health accuracy.
+
+#### Agent Name
+Here are more detailed states on the agent name field. It was calculated in the same way as the table above.
+
+| Agent | Accuracy |
+| --- | --- |
+| cypher | 1.0 |
+| raze | 1.0 |
+| brimstone | 0.9655172413793104 |
+| sova | 1.0 |
+| jett | 1.0 |
+| sage | 1.0 |
+| viper | 1.0 |
+| omen | 1.0 |
+| killjoy | 1.0 |
+| reyna | 1.0 |
+| kayo | 0.989010989010989 |
+| phoenix | 1.0 |
+| breach | 1.0 |
+| fade | 1.0 |
+| astra | 1.0 |
+| skye | 1.0 |
+| chamber | 1.0 |
+| neon | 1.0 |
+| gekko | 0.0 |
+| harbor | 1.0 |
+
+Generally, this field is fairly accurate. Also this is one of the fields we have the most control over, 
+so if we need to get it to a certain quality we should be able to. Basically it just takes more image classification. 
+Its boring focused work, but it isnt super hard.
+
+Note: I just realized that `yoru` isnt part of this testing set. Whoops. Also `gekko` was in like one frame and not 
+part of the prediction data. Gekko is rare enough for this timeframe (he was released as an agent after most people stopped using the UI)
+so I dont think it matters too much.
+
+#### Gun
+Here are more detailed states on the gun field. It was calculated in the same way as the table above.
+
+| Gun | Accuracy |
+| --- | --- |
+| vandal | 0.9643916913946587 |
+| operator | 0.9655172413793104 |
+| marshal | 1.0 |
+| sheriff | 0.971830985915493 |
+| phantom | 0.9538461538461539 |
+| spectre | 1.0 |
+| stinger | 1.0 |
+| bulldog | 1.0 |
+| guardian | 1.0 |
+| ghost | 0.8421052631578947 |
+| frenzy | 1.0 |
+| shorty | 0.875 |
+| judge | 0.75 |
+| odin | 1.0 |
+| classic | 1.0 |
+
+Of all the fields, this one is the one that is most likely to be improved. Similar to agent name, 
+we have a lot of control over this field, so if we need to get it to a certain quality we should be able to. More classification work.
+
+Note: This is also missing `bucky` and `ares`. `buckey` just isnt in the dataset at all. 
+I just couldnt find examples of it so its not in the model. `ares` is the same problem as `yoru`, 
+I just forgot to put it in the test set. Whoops again.
+
+#### Player Name
+This field isnt super accurate but honestly its better than I thought it would be. There are a few common issues, such
+as numbers in names being converted to letters, such as `n1zzy` which the model will predict as `nizzy`. Similarly to health,
+this could be solved by throwing more money at the problem, but I don't think its worth it.
+
+Generally I would not use this field to search but I think it may be useful in the future to match up with other datasets.
+
+#### Armor
+This field I think can be improved but am less confident than other fields. The main issue is that there is an awkward
+circle around the armor value which causes the model to see 0 way too often. There might be a way to scrub out that circle,
+which would probably make the model more accurate. I tried once before, but it didnt seem like it was getting there. 
+It deserves another shot though.
+
+#### Credits
+This field is pretty bad. It can probably be marginally improved, but I kinda suspect its not worth it. Credits are not
+really relevant during a round, only between rounds so I feel that putting high effort into this field is not worth it.
+
+#### Ult Points
+Perfection. Not much to talk about here, it just works and I want to acknowledge that something just works.
+
+#### Util
+Almost perfect. The inaccuracies are in one specific place, which is `astra` utility. `astra` util accuracy is 
+`0.88571428571`, all other agents are `1.0`.
+
+The reason they're different is the UI for `astra` utility is very different form other utility. 
+It has like 4 circles, instead of a number of dots. It probably can be improved, but I'm not sure by how much.
+
+#### Other data quality issues
+There are two other common data issues I want to talk about. Both have to do with the with what makes an agent "alive".
+This causes two related but opposite issues. 
+Sometimes when an agent is dead, the model will predict them as alive. 
+Reversely, sometimes when an agent is alive, the model will predict them as dead.
+I call them "extra_agents" and "missing_agents" respectively.
+
+In the tests, out of 819 total agents in the test set, there were 3 extra agents and 4 missing agents. So both sub 1% 
+but still not zero. I think this is a pretty good result, but it can for sure be improved upon.

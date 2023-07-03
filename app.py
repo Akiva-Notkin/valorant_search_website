@@ -124,13 +124,12 @@ def get_agent_round_map_merge_df(json_data, join_by_team=False):
         return None, "No agent_state_list found in JSON data."
     agent_state_list = json_data['agent_state_list']
     agent_state_df = search_for_agent_state_in_db_from_list(agent_state_list, join_by_team=join_by_team)
+    # rounds_df = search_for_rounds_from_json_data(json_data, join_by_team=join_by_team)
     if len(agent_state_df) == 0:
         return None, "Nothing found matching your query."
     else:
 
-
         round_info_df = valo_db.get_unique_rounds(agent_state_df)
-
         map_info_df = valo_db.get_unique_maps(agent_state_df)
         agent_round_merge_df = pd.merge(agent_state_df, round_info_df, on=('round_number', 'game_uuid'))
         agent_round_map_merge_df = pd.merge(agent_round_merge_df, map_info_df, on='game_uuid')
@@ -255,4 +254,5 @@ def map_page(map_id):
 
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=1234)
+    from waitress import serve
+    serve(app, host="0.0.0.0", port=8080)
