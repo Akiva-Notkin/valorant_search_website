@@ -5,12 +5,9 @@ import pandas as pd
 from pathlib import Path
 from valo_db import ValoDatabase
 from urllib.parse import quote_plus
+import time
 
 app = Flask(__name__, static_url_path='/static')
-
-INT_RANGE_ROUND_KEYS = ["round_number", "seconds_into_round"]
-STRING_LIST_ROUND_KEYS = ["map_name", "game_uuid", "first_half_attacking_team", "first_half_defending_team"]
-BOOL_ROUND_KEYS = ["attackers_won"]
 
 
 @app.teardown_appcontext
@@ -87,7 +84,15 @@ def create_normal_link(row, start_frame_column):
 
     # If start_time is provided, add it to the embed link
     if row[start_frame_column]:
-        link_base += '&t={}'.format(row[start_frame_column] // row['vod_fps'])
+        # I do not understand what went wrong, but I only tested on VODs that reported out as 30 or 60 fps. Something
+        # weird happens when the reported fps is 29 or 59 and this adjusts the time to be roughly correct.
+        # This is a bad bug and will be fixed in the future if I keep working on this,
+        # but for the basic search I think its okay.
+        vod_fps = row['vod_fps']
+        if row['vod_fps'] == 29 or row['vod_fps'] == 59:
+            row[start_frame_column] = int(row[start_frame_column] * 1.001)
+            vod_fps = row['vod_fps'] + 1
+        link_base += '&t={}'.format(row[start_frame_column] // vod_fps)
 
     # Add the remaining parameters to the embed link
     full_link = link_base
@@ -123,43 +128,22 @@ def convert_to_html_showable_df(agent_round_map_merge_df):
     return agent_round_map_merge_df
 
 
-def filter_agent_round_map_merge_df(agent_round_map_merge_df, json_data):
-    """
-    Takes a dataframe of agent state data and filters it based on the JSON data provided.
-    :param agent_round_map_merge_df:
-    :param json_data:
-    :return:
-    """
-    for key, value in json_data.items():
-        if key in INT_RANGE_ROUND_KEYS:
-            if key == "seconds_into_round":
-                key = "frames_since_round_start"
-                filter_list = (agent_round_map_merge_df[key] // agent_round_map_merge_df["vod_fps"] >= value[0]) \
-                              & (agent_round_map_merge_df[key] // agent_round_map_merge_df["vod_fps"] <= value[1])
-            else:
-                filter_list = (agent_round_map_merge_df[key] >= value[0]) & (agent_round_map_merge_df[key] <= value[1])
-            agent_round_map_merge_df = agent_round_map_merge_df[filter_list]
-        elif key in STRING_LIST_ROUND_KEYS:
-            agent_round_map_merge_df = agent_round_map_merge_df[agent_round_map_merge_df[key].isin(value)]
-        elif key in BOOL_ROUND_KEYS:
-            agent_round_map_merge_df = agent_round_map_merge_df[agent_round_map_merge_df[key] == value]
-
-    return agent_round_map_merge_df
-
-
 def get_agent_round_map_merge_df(json_data, join_by_team=False):
     if 'agent_state_list' not in json_data:
-        return None, "No agent_state_list found in JSON data."
+        raise KeyError("No agent_state_list found in JSON data.")
     agent_state_list = json_data['agent_state_list']
     agent_state_df = search_for_agent_state_in_db_from_list(agent_state_list, join_by_team=join_by_team)
-    if len(agent_state_df) == 0:
-        raise KeyError("No agent state data found in database.")
+    round_info_df = valo_db.get_filtered_rounds(json_data)
+    map_info_df = valo_db.get_filtered_maps(json_data)
 
-    round_info_df = valo_db.get_unique_rounds(agent_state_df)
-    map_info_df = valo_db.get_unique_maps(agent_state_df)
-    agent_round_merge_df = pd.merge(agent_state_df, round_info_df, on=('round_number', 'game_uuid'), how='outer')
-    agent_round_map_merge_df = pd.merge(agent_round_merge_df, map_info_df, on='game_uuid', how='outer')
-    agent_round_map_merge_df = filter_agent_round_map_merge_df(agent_round_map_merge_df, json_data)
+    if round_info_df is None:
+        round_info_df = valo_db.get_unique_rounds(agent_state_df)
+
+    if map_info_df is None:
+        map_info_df = valo_db.get_unique_maps(agent_state_df)
+
+    agent_round_merge_df = pd.merge(agent_state_df, round_info_df, on=('round_number', 'game_uuid'))
+    agent_round_map_merge_df = pd.merge(agent_round_merge_df, map_info_df, on='game_uuid')
 
     if len(agent_round_map_merge_df) == 0:
         raise KeyError("No agent state data found after filtering with rounds.")

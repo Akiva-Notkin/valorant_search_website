@@ -12,6 +12,14 @@ INT_RANGE_AGENT_KEYS = ["credits", "health", "armor", "ult_points", "c_util", "q
 STRING_LIST_AGENT_KEYS = ["agent_name", "player_name", "gun"]
 BOOL_AGENT_KEYS = ["is_attacking"]
 
+INT_RANGE_ROUND_KEYS = ["round_number", "frames_since_round_start"]
+STRING_LIST_ROUND_KEYS = ["game_uuid"]
+BOOL_ROUND_KEYS = ["attackers_won"]
+
+INT_RANGE_MAP_KEYS = []
+STRING_LIST_MAP_KEYS = ["map_name", "game_uuid"]
+BOOL_MAP_KEYS = []
+
 
 class ValoDatabase:
     def query_db(self, query, params=None):
@@ -39,6 +47,8 @@ class ValoDatabase:
                 where_conditions_list.append(f"{key} = %({key})s")
                 params[key] = value
         where_condition_string = f"WHERE {' AND '.join(where_conditions_list)}"
+        if len(where_conditions_list) == 0:
+            return None
 
         state_count_min = 1
         if join_by_team:
@@ -72,6 +82,49 @@ class ValoDatabase:
         map_query = "SELECT * FROM map_info WHERE game_uuid = %(game_uuid)s"
         map_df = self.query_db(map_query, params)
         return rounds_df, map_df
+
+    def get_filtered_rounds(self, json_data):
+        where_conditions_list = []
+        params = {}
+        for key, value in json_data.items():
+            if key in INT_RANGE_ROUND_KEYS:
+                where_conditions_list.append(f"{key} BETWEEN %({key}_min)s AND %({key}_max)s ")
+                params[f"{key}_min"] = value[0]
+                params[f"{key}_max"] = value[1]
+            elif key in STRING_LIST_ROUND_KEYS:
+                where_conditions_list.append(f"{key} = ANY(%({key})s)")
+                params[key] = value
+            elif key in BOOL_ROUND_KEYS:
+                where_conditions_list.append(f"{key} = %({key})s")
+                params[key] = value
+        if len(where_conditions_list) == 0:
+            return None
+        where_condition_string = f"WHERE {' AND '.join(where_conditions_list)}"
+        round_info_query = f"SELECT round_start_frame, round_number, attackers_won, game_uuid " \
+                           f"FROM round_info as ri {where_condition_string}"
+        round_info_df = self.query_db(round_info_query, params=params)
+        return round_info_df
+
+    def get_filtered_maps(self, json_data):
+        where_conditions_list = []
+        params = {}
+        for key, value in json_data.items():
+            if key in INT_RANGE_MAP_KEYS:
+                where_conditions_list.append(f"{key} BETWEEN %({key}_min)s AND %({key}_max)s ")
+                params[f"{key}_min"] = value[0]
+                params[f"{key}_max"] = value[1]
+            elif key in STRING_LIST_MAP_KEYS:
+                where_conditions_list.append(f"{key} = ANY(%({key})s)")
+                params[key] = value
+            elif key in BOOL_MAP_KEYS:
+                where_conditions_list.append(f"{key} = %({key})s")
+                params[key] = value
+        where_condition_string = f"WHERE {' AND '.join(where_conditions_list)}"
+        if len(where_conditions_list) == 0:
+            return None
+        map_info_query = f"SELECT * FROM map_info {where_condition_string}"
+        map_info_df = self.query_db(map_info_query, params=params)
+        return map_info_df
 
     def get_unique_rounds(self, agent_state_df):
         unique_round_tuples = agent_state_df.drop_duplicates(subset=['game_uuid', 'round_number']) \
