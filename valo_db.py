@@ -33,6 +33,12 @@ class ValoDatabase:
         return df
 
     def search_for_agent_state_in_db(self, search_json, join_by_team=False):
+        """
+        Gets agent state data from the database based on the search parameters
+        :param dict search_json: A dictionary of search parameters
+        :param bool join_by_team: Whether to join the agent_state table with the team table
+        :return:
+        """
         where_conditions_list = []
         params = {}
         for key, value in search_json.items():
@@ -71,19 +77,13 @@ class ValoDatabase:
         agent_state_df.drop('agent_state_count', axis=1, inplace=True)
         return agent_state_df
 
-    def get_rounds_map_df_by_uuid(self, game_uuid):
-        game_uuid = str(game_uuid)
-        rounds_query = "SELECT round_number, attackers_won, total_agent_events, round_start_frame," \
-                       "        game_uuid " \
-                       "FROM round_info WHERE game_uuid = %(game_uuid)s"
-        params = {'game_uuid': game_uuid}
-        rounds_df = self.query_db(rounds_query, params)
-
-        map_query = "SELECT * FROM map_info WHERE game_uuid = %(game_uuid)s"
-        map_df = self.query_db(map_query, params)
-        return rounds_df, map_df
-
     def get_filtered_rounds(self, json_data):
+        """
+        Gets a list of rounds that match the given filters
+        :param dict json_data: A dictionary of filters
+        :return: A dataframe of rounds that match the given filters
+        :rtype: pd.DataFrame
+        """
         where_conditions_list = []
         params = {}
         for key, value in json_data.items():
@@ -106,6 +106,12 @@ class ValoDatabase:
         return round_info_df
 
     def get_filtered_maps(self, json_data):
+        """
+        Gets a list of maps that match the given filters
+        :param dict json_data: A dictionary of filters
+        :return: A dataframe of maps that match the given filters
+        :rtype: pd.DataFrame
+        """
         where_conditions_list = []
         params = {}
         for key, value in json_data.items():
@@ -127,6 +133,12 @@ class ValoDatabase:
         return map_info_df
 
     def get_unique_rounds(self, agent_state_df):
+        """
+        Gets the unique rounds associated with an agent_state_df
+        :param pd.DataFrame agent_state_df: The agent_state_df to get the unique rounds for
+        :return: The unique rounds
+        :rtype: pd.DataFrame
+        """
         unique_round_tuples = agent_state_df.drop_duplicates(subset=['game_uuid', 'round_number']) \
             [['game_uuid', 'round_number']].values.tolist()
         unique_round_str = str(unique_round_tuples).replace('[', '(').replace(']', ')')
@@ -136,6 +148,12 @@ class ValoDatabase:
         return round_info_df
 
     def get_unique_maps(self, agent_state_df):
+        """
+        Gets the unique maps associated with an agent_state_df
+        :param pd.DataFrame agent_state_df: The agent_state_df to get the unique maps for
+        :return: The unique maps
+        :rtype: pd.DataFrame
+        """
         unique_map_tuples = agent_state_df.drop_duplicates(subset=['game_uuid'])[['game_uuid']].values.tolist()
         unique_map_str = str(unique_map_tuples).replace('[', '(').replace(']', ')')
         map_info_query = f"SELECT * FROM map_info WHERE game_uuid IN {unique_map_str}"
