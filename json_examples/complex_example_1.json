@@ -1,0 +1,21 @@
+{
+  "agent_state_list": [{
+    "agent_name": ["raze", "chamber"],
+    "health": [50, 90],
+    "ult_points": [3, 6],
+    "e_util": [1, 1]
+  },
+  {
+    "agent_name": ["brimstone", "omen"],
+    "health": [50, 100],
+    "ult_points": [4, 7],
+    "e_util": [1, 2]
+  },
+    {
+    "agent_name": ["cypher", "killjoy"],
+    "health": [50, 90],
+    "ult_points": [1, 4],
+    "c_util": [1, 1]
+  }
+  ]
+}

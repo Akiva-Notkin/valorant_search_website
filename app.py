@@ -66,15 +66,13 @@ def create_normal_link(row, start_frame_column):
 
     # If start_time is provided, add it to the embed link
     if row[start_frame_column]:
-        # I do not understand what went wrong, but I only tested on VODs that reported out as 30 or 60 fps. Something
-        # weird happens when the reported fps is 29 or 59 and this adjusts the time to be roughly correct.
-        # This is a bad bug and will be fixed in the future if I keep working on this,
-        # but for the basic search I think its okay.
+        # I stored fps as ints but sometimes it's a float. This converts it back.
         vod_fps = row['vod_fps']
-        if row['vod_fps'] == 29 or row['vod_fps'] == 59:
-            row[start_frame_column] = int(row[start_frame_column] * 1.001)
-            vod_fps = row['vod_fps'] + 1
-        link_base += '&t={}'.format(row[start_frame_column] // vod_fps)
+        if row['vod_fps'] == 29:
+            vod_fps = 29.97
+        elif row['vod_fps'] == 59:
+            vod_fps = 59.94
+        link_base += '&t={}'.format(int(row[start_frame_column] // vod_fps))
 
     # Add the remaining parameters to the embed link
     full_link = link_base
@@ -118,6 +116,9 @@ def get_agent_round_map_merge_df(json_data, join_by_team=False):
     round_info_df = valo_db.get_filtered_rounds(json_data)
     map_info_df = valo_db.get_filtered_maps(json_data)
 
+    if len(agent_state_df) == 0:
+        raise KeyError("No agent state data found after filtering with rounds.")
+
     if round_info_df is None:
         round_info_df = valo_db.get_unique_rounds(agent_state_df)
 
@@ -126,9 +127,6 @@ def get_agent_round_map_merge_df(json_data, join_by_team=False):
 
     agent_round_merge_df = pd.merge(agent_state_df, round_info_df, on=('round_number', 'game_uuid'))
     agent_round_map_merge_df = pd.merge(agent_round_merge_df, map_info_df, on='game_uuid')
-
-    if len(agent_round_map_merge_df) == 0:
-        raise KeyError("No agent state data found after filtering with rounds.")
 
     agent_round_map_merge_df['first_true_frame_in_round'] = \
         agent_round_map_merge_df.groupby(['round_number', 'game_uuid'])[
@@ -159,7 +157,7 @@ def normal_form():
             json_data = json.loads(request.form.get('json_data'))
             agent_round_map_merge_df = get_agent_round_map_merge_df(json_data, join_by_team=False)
         except KeyError as ke:
-            return ke
+            return str(ke)
 
         html_showable_df = convert_to_html_showable_df(agent_round_map_merge_df)
         col_skip = ['game_uuid', 'Round Start', 'First True', 'Last True']

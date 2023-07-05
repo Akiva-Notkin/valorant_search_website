@@ -1,0 +1,20 @@
+{
+  "agent_state_list": [{
+    "agent_name": ["yoru"],
+    "health": [50, 90],
+    "ult_points": [0, 6],
+    "is_attacking": false
+  },
+  {
+    "agent_name": ["viper"],
+    "health": [20, 90],
+    "ult_points": [0, 6],
+    "c_util": [0,0]
+  },
+   {
+    "gun": ["vandal"],
+    "health": [100,100],
+    "state_count": [2,5]
+   }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "agent_state_list": [{
+    "agent_name": ["reyna"],
+    "health": [50, 90],
+    "ult_points": [10, 10],
+    "is_attacking": true
+  },
+  {
+    "agent_name": ["sage"],
+    "ult_points": [10, 10]
+  }
+  ],
+  "attackers_won": true,
+  "round_number": [13, 24]
+}
