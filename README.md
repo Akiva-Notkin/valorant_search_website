@@ -165,6 +165,21 @@ This query would find all VODs with two distinct agent_states Sage has a phantom
 and has at least 5 ult points, or has his ult. The VODs must also be between round 1 and 5 inclusive.
 
 ## Data Discussion
+### List of scraped events
+Below is a list of the events scraped for the underlying data. If you have VODs from this time period that are not on the list, please reach out with links and I can add them to the data set.
+
+- VCT Champions 2022
+- VCT LOCK//IN
+- VCT Game Changers Championship 2022
+- VCT Game Changers BR 
+- VCT Game Changers KR 2022 (September 22,23)
+- VCT Challengers SEA VN 2023 Split 1
+- VCT Challengers SEA TH 2023 Split 1
+- VCT Challengers SEA PH 2023 Split 1
+- VCT Challengers SEA ID 2023 Split 1
+- VCT Challengers BR 2023 Split 1
+
+
 ### Data quality Overview
 This section is going to discuss the underlying data of the search tool. 
 Most of this section is going to be a discussion of data quality, both in terms of where it is now, 
