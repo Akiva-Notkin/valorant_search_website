@@ -3,7 +3,7 @@ This README covers two main topics.
 First, it provides documentation on how to use the search tool.  
 Second, it discusses the underlying data that powers this tool.
 
-Link to the search tool: https://valorantvodsearch
+Link to the search tool: https://valorantvodsearch.com
 
 ## Search and how to use it
 ### Overview
