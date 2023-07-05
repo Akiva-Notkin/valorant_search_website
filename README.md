@@ -30,7 +30,7 @@ Eg. `"attackers_won": true` will query for rounds where the attackers won.
 
 `map_name`: String_list. The name of the map. Eg. `"map_name": ["bind", "haven"]` will query for maps on bind or haven.
 
-`map_uuid`: String_list. The UUID of the map. Eg. `"map_uuid": ["e59aa87c-4574-4b5d-a9a1-54b5ff4d9c3c", 
+`game_uuid`: String_list. The UUID of the game. Eg. `"map_uuid": ["e59aa87c-4574-4b5d-a9a1-54b5ff4d9c3c", 
 "2c9d9c29-4274-4d8a-9c8b-78e963b9b8a4"]` will query for maps with the given UUIDs.
 
 `first_half_attacking_team`: String_list. The team that was attacking in the first half. Eg. 
