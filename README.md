@@ -17,7 +17,7 @@ A Search JSON Object is the highest level JSON object that is used in the search
 #### Search JSON Object Fields
 Required fields: 
 
-`agent_state_list`: List of  [Agent State JSON Objects](#AGENT STATE JSON OBJECT). 
+`agent_state_list`: List of  [Agent State JSON Objects](https://github.com/Akiva-Notkin/valorant_search_website#agent-state-json-object). 
 The list of agent states to search for.
 
 Optional fields:
@@ -44,7 +44,7 @@ states between 0 and 30 seconds into the round.
 
 ### Agent State JSON Object
 #### What is the Agent State JSON Object?
-An Agent State JSON Object is a JSON object that represents the state of an agent at a given time. The Search JSON Object
+An Agent State JSON Object is a JSON object that represents the state of an agent at a given time. The [Search JSON Object](https://github.com/Akiva-Notkin/valorant_search_website#agent-state-json-object)
 must include a list of Agent State JSON Objects. 
 
 #### Agent State JSON Object Fields
@@ -87,13 +87,13 @@ Eg. `"state_count": [1, 1], "gun": ["phantom"]` will query for agent states wher
 #### Normal Query
 `/normal` endpoint
 
-The 'normal' query takes a [Search JSON Object](#SEARCH JSON OBJECT) and returns all VODs that match the query. 
+The 'normal' query takes a [Search JSON Object](https://github.com/Akiva-Notkin/valorant_search_website#agent-state-json-object) and returns all VODs that match the query. 
 The return formal
 
 #### Versus Query
 `/versus` endpoint
 
-The 'versus' query takes two Search JSON Objects, Team 1 and Team 2, and returns all VODs where both teams are present. 
+The 'versus' query takes two [Search JSON Object](https://github.com/Akiva-Notkin/valorant_search_website#agent-state-json-object), Team 1 and Team 2, and returns all VODs where both teams are present. 
 It also shows the round win counts for each of the two teams in rounds they played each other. This query is a bit more
 experimental.
 
