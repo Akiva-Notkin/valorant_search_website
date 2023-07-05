@@ -8,7 +8,8 @@ Link to the search tool: https://valorantvodsearch.com
 ## Search and how to use it
 ### Overview
 This section is going to cover what searches there are and how to use them. 
-All queries are in the form of a [JSON object](https://developer.mozilla.org/en-US/docs/Learn/JavaScript/Objects/JSON).
+All queries are in the form of a [JSON object](https://developer.mozilla.org/en-US/docs/Learn/JavaScript/Objects/JSON). Construct the JSON object, put it into the text
+boxes for the page, then hit submit. Thats currently the only way to search the data.
 
 ### Search JSON Object
 #### What is the Search JSON Object?
