@@ -17,7 +17,7 @@ function createLocalLinks(json_dictionary) {
         path += key + '=' + urlEncode(stripSpaces(value)) + '&';
     }
     link.href = path;
-    link.textContent = 'https://valorantvodsearcher.com' + path;
+    link.textContent = 'https://valorantvodsearch.com' + path;
 }
 
 window.onload = function () {
